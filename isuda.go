@@ -70,7 +70,7 @@ func authenticate(c *gin.Context) error {
 	return errInvalidUser
 }
 
-func initializeHandler(c *gin.Context) {
+func initializedHandler(c *gin.Context) {
 	_, err := db.Exec(`DELETE FROM entry WHERE id > 7101`)
 	panicIf(err)
 
@@ -507,7 +507,7 @@ func main() {
 	//r.GET("/keyword/:keyword", postKeyword)
 	//r.Run(":80")
 	r.GET("/", topHandler)
-	r.GET("/initialize", initializeHandler)
+	r.GET("/initialize", initializedHandler)
 	r.GET("/robots.txt", robotsHandler)
 	r.POST("/keyword", keywordPostHandler)
 

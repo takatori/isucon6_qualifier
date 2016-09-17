@@ -349,12 +349,12 @@ func loadStars(keyword string) []*Star {
 		panicIf(err)
 	}
 
-	stars := make([]Star, 0, 10)
+	stars := make([]*Star, 0, 10)
 	for rows.Next() {
 		s := Star{}
 		err := rows.Scan(&s.ID, &s.Keyword, &s.UserName, &s.CreatedAt)
 		panicIf(err)
-		stars = append(stars, s)
+		stars = append(stars, &s)
 	}
 	return stars
 }
@@ -395,7 +395,7 @@ func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 func starsPostHandler(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
 	user := r.URL.Query().Get("user")
-	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
+	_, err := db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
 	panicIf(err)
 
 	sre.JSON(w, http.StatusOK, map[string]string{"result": "ok"})

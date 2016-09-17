@@ -395,7 +395,8 @@ func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 func starsPostHandler(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
 	user := r.URL.Query().Get("user")
-	rows, err := db.Exec(`select keyword from entry where keyword = ?`, keyword)
+	
+	rows, err := db.Query(`select keyword from entry where keyword = ?`, keyword)
 
 	panicIf(err)
 	if rows.Next() == nil {

@@ -17,10 +17,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"runtime"
 
+	"github.com/gin-gonic/gin"
 	"github.com/Songmu/strrand"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/unrolled/render"
 )
@@ -42,13 +43,13 @@ var (
 	errInvalidUser = errors.New("Invalid User")
 )
 
-func setName(w http.ResponseWriter, r *http.Request) error {
-	session := getSession(w, r)
+func setName(c *gin.Context) error {
+	session := getSession(c)
 	userID, ok := session.Values["user_id"]
 	if !ok {
 		return nil
 	}
-	setContext(r, "user_id", userID)
+	setContext(c.Request, "user_id", userID)
 	row := db.QueryRow(`SELECT name FROM user WHERE id = ?`, userID)
 	user := User{}
 	err := row.Scan(&user.Name)
@@ -58,18 +59,18 @@ func setName(w http.ResponseWriter, r *http.Request) error {
 		}
 		panicIf(err)
 	}
-	setContext(r, "user_name", user.Name)
+	setContext(c.Request, "user_name", user.Name)
 	return nil
 }
 
-func authenticate(w http.ResponseWriter, r *http.Request) error {
-	if u := getContext(r, "user_id"); u != nil {
+func authenticate(c *gin.Context) error {
+	if u := getContext(c, "user_id"); u != nil {
 		return nil
 	}
 	return errInvalidUser
 }
 
-func initializeHandler(w http.ResponseWriter, r *http.Request) {
+func initializeHandler(c *gin.Context) {
 	_, err := db.Exec(`DELETE FROM entry WHERE id > 7101`)
 	panicIf(err)
 
@@ -77,17 +78,20 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	panicIf(err)
 	defer resp.Body.Close()
 
-	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+	c.JSON(200, gin.H{
+		"result": "ok",
+	})
+	//re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
-func topHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func topHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
 
 	perPage := 10
-	p := r.URL.Query().Get("page")
+	p := c.Query("page")
 	if p == "" {
 		p = "1"
 	}
@@ -105,7 +109,7 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		e := Entry{}
 		err := rows.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
 		panicIf(err)
-		e.Html = htmlify(w, r, e.Description)
+		e.Html = htmlify(c.Writer, c.Request, e.Description)
 		e.Stars = loadStars(e.Keyword)
 		entries = append(entries, &e)
 	}
@@ -126,41 +130,49 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		pages = append(pages, i)
 	}
 
-	re.HTML(w, http.StatusOK, "index", struct {
-		Context  context.Context
-		Entries  []*Entry
-		Page     int
-		LastPage int
-		Pages    []int
-	}{
-		r.Context(), entries, page, lastPage, pages,
+	c.HTML(http.StatusOK, "index.tmpl", gin.H{
+		"Context"  : c.Context,
+		"Entries"  : entries,
+		"Page"     : page,
+		"LastPage" : lastPage,
+		"Pages"    : pages,
 	})
+
+	//re.HTML(w, http.StatusOK, "index", struct {
+	//	Context  context.Context
+	//	Entries  []*Entry
+	//	Page     int
+	//	LastPage int
+	//	Pages    []int
+	//}{
+	//	r.Context(), entries, page, lastPage, pages,
+	//})
 }
 
-func robotsHandler(w http.ResponseWriter, r *http.Request) {
-	notFound(w)
+func robotsHandler(c *gin.Context) {
+	notFound(c.Writer)
 }
 
-func keywordPostHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func keywordPostHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
-	if err := authenticate(w, r); err != nil {
-		forbidden(w)
+	if err := authenticate(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
-
-	keyword := r.FormValue("keyword")
+	keyword := c.PostForm("keyword")
 	if keyword == "" {
-		badRequest(w)
+		badRequest(c.Writer)
 		return
 	}
-	userID := getContext(r, "user_id").(int)
-	description := r.FormValue("description")
+	userID := getContext(c, "user_id").(int)
+	description := c.PostForm("description")
 
 	if isSpamContents(description) || isSpamContents(keyword) {
-		http.Error(w, "SPAM!", http.StatusBadRequest)
+		//c.Error("SPAM!")
+		http.Error(c.Writer, "SPAM!", http.StatusBadRequest)
 		return
 	}
 	_, err := db.Exec(`
@@ -170,72 +182,84 @@ func keywordPostHandler(w http.ResponseWriter, r *http.Request) {
 		author_id = ?, keyword = ?, description = ?, updated_at = NOW()
 	`, userID, keyword, description, userID, keyword, description)
 	panicIf(err)
-	http.Redirect(w, r, "/", http.StatusFound)
+	c.Redirect(404, "/")
+	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func loginHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
-
-	re.HTML(w, http.StatusOK, "authenticate", struct {
-		Context context.Context
-		Action  string
-	}{
-		r.Context(), "login",
+	c.HTML(200, "authenticate.tmpl", gin.H{
+		Context : c,
+		Action  : "login",
 	})
+	//re.HTML(w, http.StatusOK, "authenticate", struct {
+	//	Context context.Context
+	//	Action  string
+	//}{
+	//	r.Context(), "login",
+	//})
 }
 
-func loginPostHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
+func loginPostHandler(c *gin.Context) {
+	name := c.Value("name")
+	//r.FormValue("name")
 	row := db.QueryRow(`SELECT * FROM user WHERE name = ?`, name)
 	user := User{}
 	err := row.Scan(&user.ID, &user.Name, &user.Salt, &user.Password, &user.CreatedAt)
-	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+r.FormValue("password")))) {
-		forbidden(w)
+	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+c.Value("password")))) {
+		forbidden(c.Writer)
 		return
 	}
 	panicIf(err)
-	session := getSession(w, r)
+	session := getSession(c)
 	session.Values["user_id"] = user.ID
-	session.Save(r, w)
-	http.Redirect(w, r, "/", http.StatusFound)
+	session.Save(c.Request, c.Writer)
+	c.Redirect(404, "/")
+	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	session := getSession(w, r)
+func logoutHandler(c *gin.Context) {
+	session := getSession(c)
 	session.Options = &sessions.Options{MaxAge: -1}
-	session.Save(r, w)
-	http.Redirect(w, r, "/", http.StatusFound)
+	session.Save(c.Request, c.Writer)
+	c.Redirect(404, "/")
+	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func registerHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
 
-	re.HTML(w, http.StatusOK, "authenticate", struct {
-		Context context.Context
-		Action  string
-	}{
-		r.Context(), "register",
+	c.HTML(200, "authenticate.tmpl", gin.H{
+		Context : c,
+		Action  : "register",
 	})
+	//re.HTML(w, http.StatusOK, "authenticate", struct {
+	//	Context context.Context
+	//	Action  string
+	//}{
+	//	r.Context(), "register",
+	//})
 }
 
-func registerPostHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	pw := r.FormValue("password")
+func registerPostHandler(c *gin.Context) {
+	name := c.Value("name")
+	pw := c.Value("password")
 	if name == "" || pw == "" {
-		badRequest(w)
+		badRequest(c.Writer)
 		return
 	}
 	userID := register(name, pw)
-	session := getSession(w, r)
+	session := getSession(c)
 	session.Values["user_id"] = userID
-	session.Save(r, w)
-	http.Redirect(w, r, "/", http.StatusFound)
+	session.Save(c.Request, c.Writer)
+	c.Redirect(404, "/")
+	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func register(user string, pass string) int64 {
@@ -248,63 +272,68 @@ func register(user string, pass string) int64 {
 	return lastInsertID
 }
 
-func keywordByKeywordHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func keywordByKeywordHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
 
-	keyword := mux.Vars(r)["keyword"]
+	keyword := c.Param("keyword")
 	row := db.QueryRow(`SELECT * FROM entry WHERE keyword = ?`, keyword)
 	e := Entry{}
 	err := row.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
 	if err == sql.ErrNoRows {
-		notFound(w)
+		notFound(c.Writer)
 		return
 	}
-	e.Html = htmlify(w, r, e.Description)
+	e.Html = htmlify(c, e.Description)
 	e.Stars = loadStars(e.Keyword)
 
-	re.HTML(w, http.StatusOK, "keyword", struct {
-		Context context.Context
-		Entry   Entry
-	}{
-		r.Context(), e,
+	c.HTML(200, "/keyword.tmpl", gin.H{
+		Context : c,
+		Entry  : e,
 	})
+	//re.HTML(w, http.StatusOK, "keyword", struct {
+	//	Context context.Context
+	//	Entry   Entry
+	//}{
+	//	r.Context(), e,
+	//})
 }
 
-func keywordByKeywordDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	if err := setName(w, r); err != nil {
-		forbidden(w)
+func keywordByKeywordDeleteHandler(c *gin.Context) {
+	if err := setName(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
-	if err := authenticate(w, r); err != nil {
-		forbidden(w)
+	if err := authenticate(c); err != nil {
+		forbidden(c.Writer)
 		return
 	}
 
-	keyword := mux.Vars(r)["keyword"]
+	keyword := c.Param("keyword")
 	if keyword == "" {
-		badRequest(w)
+		badRequest(c.Writer)
 		return
 	}
-	if r.FormValue("delete") == "" {
-		badRequest(w)
+	if c.PostForm("delete") == "" {
+		badRequest(c.Writer)
 		return
 	}
 	row := db.QueryRow(`SELECT * FROM entry WHERE keyword = ?`, keyword)
 	e := Entry{}
 	err := row.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
 	if err == sql.ErrNoRows {
-		notFound(w)
+		notFound(c.Writer)
 		return
 	}
 	_, err = db.Exec(`DELETE FROM entry WHERE keyword = ?`, keyword)
 	panicIf(err)
-	http.Redirect(w, r, "/", http.StatusFound)
+	c.Redirect(404, "/")
+	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func htmlify(w http.ResponseWriter, r *http.Request, content string) string {
+func htmlify(c *gin.Context, content string) string {
 	if content == "" {
 		return ""
 	}
@@ -333,7 +362,7 @@ func htmlify(w http.ResponseWriter, r *http.Request, content string) string {
 	})
 	content = html.EscapeString(content)
 	for kw, hash := range kw2sha {
-		u, err := r.URL.Parse(baseUrl.String()+"/keyword/" + pathURIEscape(kw))
+		u, err := c.Request.URL.Parse(baseUrl.String()+"/keyword/" + pathURIEscape(kw))
 		panicIf(err)
 		link := fmt.Sprintf("<a href=\"%s\">%s</a>", u, html.EscapeString(kw))
 		content = strings.Replace(content, hash, link, -1)
@@ -371,8 +400,8 @@ func isSpamContents(content string) bool {
 	return !data.Valid
 }
 
-func getContext(r *http.Request, key interface{}) interface{} {
-	return r.Context().Value(key)
+func getContext(c *gin.Context, key interface{}) interface{} {
+	return c.Value(key)
 }
 
 func setContext(r *http.Request, key, val interface{}) {
@@ -384,8 +413,8 @@ func setContext(r *http.Request, key, val interface{}) {
 	*r = *r2
 }
 
-func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
-	session, _ := store.Get(r, sessionName)
+func getSession(c *gin.Context) *sessions.Session {
+	session, _ := store.Get(c.Request, sessionName)
 	return session
 }
 
@@ -455,25 +484,61 @@ func main() {
 		},
 	})
 
-	r := mux.NewRouter()
-	r.HandleFunc("/", myHandler(topHandler))
-	r.HandleFunc("/initialize", myHandler(initializeHandler)).Methods("GET")
-	r.HandleFunc("/robots.txt", myHandler(robotsHandler))
-	r.HandleFunc("/keyword", myHandler(keywordPostHandler)).Methods("POST")
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	l := r.PathPrefix("/login").Subrouter()
-	l.Methods("GET").HandlerFunc(myHandler(loginHandler))
-	l.Methods("POST").HandlerFunc(myHandler(loginPostHandler))
-	r.HandleFunc("/logout", myHandler(logoutHandler))
+	r := gin.New()
 
-	g := r.PathPrefix("/register").Subrouter()
-	g.Methods("GET").HandlerFunc(myHandler(registerHandler))
-	g.Methods("POST").HandlerFunc(myHandler(registerPostHandler))
+	//r.GET("/", getIndex)
+	//r.GET("/initialize", getInitialize)
+	//r.GET("/robots.txt", getRobots)
+	//r.POST("/keyword", postKeyword)
+	//
+	//r.GET("/login", getLogin)
+	//r.POST("/login", postLogin)
+	//r.GET("/logout", getLogout)
+	//
+	//r.GET("/register", getRegister)
+	//r.POST("/register", postRegister)
+	//
+	//r.GET("/keyword/:keyword", getKeyword)
+	//r.GET("/keyword/:keyword", postKeyword)
+	//r.Run(":80")
+	r.GET("/", topHandler)
+	r.GET("/initialize", initializeHandler)
+	r.GET("/robots.txt", robotsHandler)
+	r.POST("/keyword", keywordPostHandler)
 
-	k := r.PathPrefix("/keyword/{keyword}").Subrouter()
-	k.Methods("GET").HandlerFunc(myHandler(keywordByKeywordHandler))
-	k.Methods("POST").HandlerFunc(myHandler(keywordByKeywordDeleteHandler))
+	r.GET("/login", loginHandler)
+	r.POST("/login", loginPostHandler)
+	r.GET("/logout", logoutHandler)
 
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
-	log.Fatal(http.ListenAndServe(":5000", r))
+	r.GET("/register", registerHandler)
+	r.POST("/register", registerPostHandler)
+
+	r.GET("/keyword/:keyword", keywordByKeywordHandler)
+	r.GET("/keyword/:keyword", keywordByKeywordDeleteHandler)
+	r.Static("/", "./public/")
+	r.Run(":8080")
+
+	//r := mux.NewRouter()
+	//r.HandleFunc("/", myHandler(topHandler))
+	//r.HandleFunc("/initialize", myHandler(initializeHandler)).Methods("GET")
+	//r.HandleFunc("/robots.txt", myHandler(robotsHandler))
+	//r.HandleFunc("/keyword", myHandler(keywordPostHandler)).Methods("POST")
+	//
+	//l := r.PathPrefix("/login").Subrouter()
+	//l.Methods("GET").HandlerFunc(myHandler(loginHandler))
+	//l.Methods("POST").HandlerFunc(myHandler(loginPostHandler))
+	//r.HandleFunc("/logout", myHandler(logoutHandler))
+	//
+	//g := r.PathPrefix("/register").Subrouter()
+	//g.Methods("GET").HandlerFunc(myHandler(registerHandler))
+	//g.Methods("POST").HandlerFunc(myHandler(registerPostHandler))
+	//
+	//k := r.PathPrefix("/keyword/{keyword}").Subrouter()
+	//k.Methods("GET").HandlerFunc(myHandler(keywordByKeywordHandler))
+	//k.Methods("POST").HandlerFunc(myHandler(keywordByKeywordDeleteHandler))
+	//
+	//r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
+	//log.Fatal(http.ListenAndServe(":5000", r))
 }

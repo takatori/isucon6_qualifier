@@ -86,6 +86,7 @@ func initializeHandler(c *gin.Context) {
 
 func topHandler(c *gin.Context) {
 	if err := setName(c); err != nil {
+		log.Printf("not setname")
 		forbidden(c.Writer)
 		return
 	}
@@ -102,6 +103,7 @@ func topHandler(c *gin.Context) {
 		perPage, perPage*(page-1),
 	))
 	if err != nil && err != sql.ErrNoRows {
+		log.Printf("error rows")
 		panicIf(err)
 	}
 	entries := make([]*Entry, 0, 10)
@@ -119,6 +121,7 @@ func topHandler(c *gin.Context) {
 	row := db.QueryRow(`SELECT COUNT(*) FROM entry`)
 	err = row.Scan(&totalEntries)
 	if err != nil && err != sql.ErrNoRows {
+		log.Printf("error rows2")
 		panicIf(err)
 	}
 

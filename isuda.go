@@ -86,7 +86,6 @@ func initializedHandler(c *gin.Context) {
 
 func topHandler(c *gin.Context) {
 	if err := setName(c); err != nil {
-		log.Printf("not setname")
 		forbidden(c.Writer)
 		return
 	}
@@ -133,7 +132,7 @@ func topHandler(c *gin.Context) {
 		pages = append(pages, i)
 	}
 
-	c.HTML(http.StatusOK, "index.tmpl", gin.H{
+	c.HTML(http.StatusOK, "/views/index.tmpl", gin.H{
 		"Context"  : c,
 		"Entries"  : entries,
 		"Page"     : page,
@@ -194,7 +193,7 @@ func loginHandler(c *gin.Context) {
 		forbidden(c.Writer)
 		return
 	}
-	c.HTML(200, "authenticate.tmpl", gin.H{
+	c.HTML(200, "/views/authenticate.tmpl", gin.H{
 		"Context" : c,
 		"Action" : "login",
 	})
@@ -238,7 +237,7 @@ func registerHandler(c *gin.Context) {
 		return
 	}
 
-	c.HTML(200, "authenticate.tmpl", gin.H{
+	c.HTML(200, "/views/authenticate.tmpl", gin.H{
 		"Context" : c,
 		"Action"  : "register",
 	})
@@ -292,7 +291,7 @@ func keywordByKeywordHandler(c *gin.Context) {
 	e.Html = htmlify(c, e.Description)
 	e.Stars = loadStars(e.Keyword)
 
-	c.HTML(200, "/keyword.tmpl", gin.H{
+	c.HTML(200, "/views/widget/keyword.tmpl", gin.H{
 		"Context" : c,
 		"Entry"  : e,
 	})

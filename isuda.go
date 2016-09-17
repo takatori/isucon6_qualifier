@@ -131,7 +131,7 @@ func topHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
-		"Context"  : context.Context,
+		"Context"  : c,
 		"Entries"  : entries,
 		"Page"     : page,
 		"LastPage" : lastPage,
@@ -192,7 +192,7 @@ func loginHandler(c *gin.Context) {
 		return
 	}
 	c.HTML(200, "authenticate.tmpl", gin.H{
-		"Context" : context.Context,
+		"Context" : c,
 		"Action" : "login",
 	})
 	//re.HTML(w, http.StatusOK, "authenticate", struct {

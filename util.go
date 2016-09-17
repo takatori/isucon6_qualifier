@@ -38,17 +38,17 @@ func pathURIEscape(s string) string {
 
 func notFound(w http.ResponseWriter) {
 	code := http.StatusNotFound
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, "not found", code)
 }
 
 func badRequest(w http.ResponseWriter) {
 	code := http.StatusBadRequest
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, "badRequest", code)
 }
 
 func forbidden(w http.ResponseWriter) {
 	code := http.StatusForbidden
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, "forbidden", code)
 }
 
 func panicIf(err error) {

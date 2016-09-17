@@ -77,9 +77,9 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = db.Exec("TRUNCATE star")	
 	panicIf(err)
 
-	_ = db.Query(`select sum(id) from entry`)
-	_ = db.Query(`select sum(id) from user`)
-	_ = db.Query(`select sum(id) from star`)	
+	_, _ = db.Query(`select sum(id) from entry`)
+	_, _ = db.Query(`select sum(id) from user`)
+	_, _ = db.Query(`select sum(id) from star`)	
 		
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }

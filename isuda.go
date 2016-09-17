@@ -471,6 +471,7 @@ func starsPostHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"result" : "ok",
 	})
+}
 
 func main() {
 	host := os.Getenv("ISUDA_DB_HOST")

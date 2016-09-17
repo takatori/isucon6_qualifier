@@ -291,7 +291,7 @@ func keywordByKeywordHandler(c *gin.Context) {
 	e.Html = htmlify(c, e.Description)
 	e.Stars = loadStars(e.Keyword)
 
-	c.HTML(200, "widget/keyword.tmpl", gin.H{
+	c.HTML(200, "keyword.tmpl", gin.H{
 		"Context" : c,
 		"Entry"  : e,
 	})
@@ -506,7 +506,7 @@ func main() {
 	//r.GET("/keyword/:keyword", postKeyword)
 	//r.Run(":80")
 	r.GET("/", topHandler)
-	r.LoadHTMLGlob("templates/*")
+	r.LoadHTMLGlob("views/*")
 	r.GET("/initialize", initializedHandler)
 	r.GET("/robots.txt", robotsHandler)
 	r.POST("/keyword", keywordPostHandler)

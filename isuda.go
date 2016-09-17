@@ -109,7 +109,7 @@ func topHandler(c *gin.Context) {
 		e := Entry{}
 		err := rows.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
 		panicIf(err)
-		e.Html = htmlify(c.Writer, c.Request, e.Description)
+		e.Html = htmlify(c, e.Description)
 		e.Stars = loadStars(e.Keyword)
 		entries = append(entries, &e)
 	}
@@ -131,7 +131,7 @@ func topHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
-		"Context"  : c.Context,
+		"Context"  : context.Context,
 		"Entries"  : entries,
 		"Page"     : page,
 		"LastPage" : lastPage,
@@ -192,8 +192,8 @@ func loginHandler(c *gin.Context) {
 		return
 	}
 	c.HTML(200, "authenticate.tmpl", gin.H{
-		Context : c,
-		Action  : "login",
+		"Context" : context.Context,
+		"Action" : "login",
 	})
 	//re.HTML(w, http.StatusOK, "authenticate", struct {
 	//	Context context.Context
@@ -209,7 +209,7 @@ func loginPostHandler(c *gin.Context) {
 	row := db.QueryRow(`SELECT * FROM user WHERE name = ?`, name)
 	user := User{}
 	err := row.Scan(&user.ID, &user.Name, &user.Salt, &user.Password, &user.CreatedAt)
-	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+c.Value("password")))) {
+	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+(c.Value("password")))){
 		forbidden(c.Writer)
 		return
 	}
@@ -236,8 +236,8 @@ func registerHandler(c *gin.Context) {
 	}
 
 	c.HTML(200, "authenticate.tmpl", gin.H{
-		Context : c,
-		Action  : "register",
+		"Context" : c,
+		"Action"  : "register",
 	})
 	//re.HTML(w, http.StatusOK, "authenticate", struct {
 	//	Context context.Context
@@ -248,8 +248,8 @@ func registerHandler(c *gin.Context) {
 }
 
 func registerPostHandler(c *gin.Context) {
-	name := c.Value("name")
-	pw := c.Value("password")
+	name := c.PostForm("name")
+	pw := c.PostForm("password")
 	if name == "" || pw == "" {
 		badRequest(c.Writer)
 		return
@@ -290,8 +290,8 @@ func keywordByKeywordHandler(c *gin.Context) {
 	e.Stars = loadStars(e.Keyword)
 
 	c.HTML(200, "/keyword.tmpl", gin.H{
-		Context : c,
-		Entry  : e,
+		"Context" : c,
+		"Entry"  : e,
 	})
 	//re.HTML(w, http.StatusOK, "keyword", struct {
 	//	Context context.Context

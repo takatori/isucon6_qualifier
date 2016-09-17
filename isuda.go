@@ -71,6 +71,7 @@ func authenticate(w http.ResponseWriter, r *http.Request) error {
 
 func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := db.Exec(`DELETE FROM entry WHERE id > 7101`)
+	_, err := db.Exec("TRUNCATE star")	
 	panicIf(err)
 
 	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutarEndpoint))
@@ -79,6 +80,8 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
+
+
 
 func topHandler(w http.ResponseWriter, r *http.Request) {
 	if err := setName(w, r); err != nil {
@@ -342,18 +345,20 @@ func htmlify(w http.ResponseWriter, r *http.Request, content string) string {
 }
 
 func loadStars(keyword string) []*Star {
-	v := url.Values{}
-	v.Set("keyword", keyword)
-	resp, err := http.Get(fmt.Sprintf("%s/stars", isutarEndpoint) + "?" + v.Encode())
-	panicIf(err)
-	defer resp.Body.Close()
-
-	var data struct {
-		Result []*Star `json:result`
+	rows, err := db.Query(`SELECT * FROM star WHERE keyword = ?`, keyword)
+	if err != nil && err != sql.ErrNoRows {
+		panicIf(err)
+		return
 	}
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	panicIf(err)
-	return data.Result
+
+	stars := make([]Star, 0, 10)
+	for rows.Next() {
+		s := Star{}
+		err := rows.Scan(&s.ID, &s.Keyword, &s.UserName, &s.CreatedAt)
+		panicIf(err)
+		stars = append(stars, s)
+	}
+	return stars
 }
 
 func isSpamContents(content string) bool {
@@ -389,6 +394,16 @@ func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 	return session
 }
 
+func starsPostHandler(w http.ResponseWriter, r *http.Request) {
+	keyword := r.URL.Query().Get("keyword")
+	user := r.URL.Query().Get("user")
+	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
+	panicIf(err)
+
+	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+}
+
+
 func main() {
 	host := os.Getenv("ISUDA_DB_HOST")
 	if host == "" {
@@ -422,10 +437,6 @@ func main() {
 	db.Exec("SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'")
 	db.Exec("SET NAMES utf8mb4")
 
-	isutarEndpoint = os.Getenv("ISUTAR_ORIGIN")
-	if isutarEndpoint == "" {
-		isutarEndpoint = "http://localhost:5001"
-	}
 	isupamEndpoint = os.Getenv("ISUPAM_ORIGIN")
 	if isupamEndpoint == "" {
 		isupamEndpoint = "http://localhost:5050"
@@ -473,6 +484,9 @@ func main() {
 	k := r.PathPrefix("/keyword/{keyword}").Subrouter()
 	k.Methods("GET").HandlerFunc(myHandler(keywordByKeywordHandler))
 	k.Methods("POST").HandlerFunc(myHandler(keywordByKeywordDeleteHandler))
+
+	s := r.PathPrefix("/stars").Subrouter()
+	s.Methods("POST").HandlerFunc(myHandler(starsPostHandler))	
 
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
 	log.Fatal(http.ListenAndServe(":5000", r))

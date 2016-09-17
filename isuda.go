@@ -395,6 +395,13 @@ func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 func starsPostHandler(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
 	user := r.URL.Query().Get("user")
+	rows := db.Exec(`select keyword from entry where keyword = ?`, keyword)
+	
+	if rows.Next() == nil {
+		notFound(w)
+		return
+	}
+	
 	_, err := db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
 	panicIf(err)
 

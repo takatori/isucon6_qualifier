@@ -135,23 +135,23 @@ func topHandler(c *gin.Context) {
 		pages = append(pages, i)
 	}
 
-	c.HTML(http.StatusOK, "index.tmpl", gin.H{
-		"Context"  : c.Request.Context(),
-		"Entries"  : entries,
-		"Page"     : page,
-		"LastPage" : lastPage,
-		"Pages"    : pages,
-	})
-
-	//re.HTML(w, http.StatusOK, "index", struct {
-	//	Context  context.Context
-	//	Entries  []*Entry
-	//	Page     int
-	//	LastPage int
-	//	Pages    []int
-	//}{
-	//	r.Context(), entries, page, lastPage, pages,
+	//c.HTML(http.StatusOK, "index.tmpl", gin.H{
+	//	"Context"  : c.Request.Context(),
+	//	"Entries"  : entries,
+	//	"Page"     : page,
+	//	"LastPage" : lastPage,
+	//	"Pages"    : pages,
 	//})
+
+	re.HTML(c.Writer, http.StatusOK, "index", struct {
+		Context  context.Context
+		Entries  []*Entry
+		Page     int
+		LastPage int
+		Pages    []int
+	}{
+		c.Request.Context(), entries, page, lastPage, pages,
+	})
 }
 
 func robotsHandler(c *gin.Context) {
@@ -196,16 +196,16 @@ func loginHandler(c *gin.Context) {
 		forbidden(c.Writer)
 		return
 	}
-	c.HTML(200, "authenticate.tmpl", gin.H{
-		"Context" : c.Request.Context(),
-		"Action" : "login",
-	})
-	//re.HTML(w, http.StatusOK, "authenticate", struct {
-	//	Context context.Context
-	//	Action  string
-	//}{
-	//	r.Context(), "login",
+	//c.HTML(200, "authenticate.tmpl", gin.H{
+	//	"Context" : c.Request.Context(),
+	//	"Action" : "login",
 	//})
+	re.HTML(c.Writer, http.StatusOK, "authenticate", struct {
+		Context context.Context
+		Action  string
+	}{
+		c.Request.Context(), "login",
+	})
 }
 
 func loginPostHandler(c *gin.Context) {
@@ -240,16 +240,16 @@ func registerHandler(c *gin.Context) {
 		return
 	}
 
-	c.HTML(200, "authenticate.tmpl", gin.H{
-		"Context" : c.Request.Context(),
-		"Action"  : "register",
-	})
-	//re.HTML(w, http.StatusOK, "authenticate", struct {
-	//	Context context.Context
-	//	Action  string
-	//}{
-	//	r.Context(), "register",
+	//c.HTML(200, "authenticate.tmpl", gin.H{
+	//	"Context" : c.Request.Context(),
+	//	"Action"  : "register",
 	//})
+	re.HTML(c.Writer, http.StatusOK, "authenticate", struct {
+		Context context.Context
+		Action  string
+	}{
+		c.Request.Context(), "register",
+	})
 }
 
 func registerPostHandler(c *gin.Context) {
@@ -294,16 +294,16 @@ func keywordByKeywordHandler(c *gin.Context) {
 	e.Html = htmlify(c, e.Description)
 	e.Stars = loadStars(e.Keyword)
 
-	c.HTML(200, "keyword.tmpl", gin.H{
-		"Context" : c.Request.Context(),
-		"Entry"  : e,
-	})
-	//re.HTML(w, http.StatusOK, "keyword", struct {
-	//	Context context.Context
-	//	Entry   Entry
-	//}{
-	//	r.Context(), e,
+	//c.HTML(200, "keyword.tmpl", gin.H{
+	//	"Context" : c.Request.Context(),
+	//	"Entry"  : e,
 	//})
+	re.HTML(c.Writer, http.StatusOK, "keyword", struct {
+		Context context.Context
+		Entry   Entry
+	}{
+		c.Request.Context(), e,
+	})
 }
 
 func keywordByKeywordDeleteHandler(c *gin.Context) {
@@ -559,7 +559,7 @@ func main() {
 	//r.GET("/keyword/:keyword", postKeyword)
 	//r.Run(":80")
 	r.GET("/", topHandler)
-	r.LoadHTMLGlob("views/*")
+	//r.LoadHTMLGlob("views/*")
 	r.GET("/initialize", initializedHandler)
 	r.GET("/robots.txt", robotsHandler)
 	r.POST("/keyword", keywordPostHandler)
@@ -572,7 +572,7 @@ func main() {
 	r.POST("/register", registerPostHandler)
 
 	r.GET("/keyword/:keyword", keywordByKeywordHandler)
-	r.GET("/keyword/:keyword", keywordByKeywordDeleteHandler)
+	r.POST("/keyword/:keyword", keywordByKeywordDeleteHandler)
 
 	r.GET("/stars", starsHandler)
 	r.POST("/stars", starsPostHandler)

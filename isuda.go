@@ -37,6 +37,7 @@ var (
 	baseUrl *url.URL
 	db      *sql.DB
 	re      *render.Render
+	sre     *render.Render
 	store   *sessions.CookieStore
 
 	errInvalidUser = errors.New("Invalid User")
@@ -71,12 +72,10 @@ func authenticate(w http.ResponseWriter, r *http.Request) error {
 
 func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := db.Exec(`DELETE FROM entry WHERE id > 7101`)
-	_, err := db.Exec("TRUNCATE star")	
 	panicIf(err)
 
-	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutarEndpoint))
+	_, err = db.Exec("TRUNCATE star")	
 	panicIf(err)
-	defer resp.Body.Close()
 
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
@@ -348,7 +347,6 @@ func loadStars(keyword string) []*Star {
 	rows, err := db.Query(`SELECT * FROM star WHERE keyword = ?`, keyword)
 	if err != nil && err != sql.ErrNoRows {
 		panicIf(err)
-		return
 	}
 
 	stars := make([]Star, 0, 10)
@@ -400,7 +398,7 @@ func starsPostHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
 	panicIf(err)
 
-	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+	sre.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
 
@@ -465,6 +463,8 @@ func main() {
 			},
 		},
 	})
+
+	sre = render.New(render.Options{Directory: "dummy"})
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", myHandler(topHandler))

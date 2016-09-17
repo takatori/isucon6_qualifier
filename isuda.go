@@ -78,6 +78,9 @@ func initializedHandler(c *gin.Context) {
 	panicIf(err)
 	defer resp.Body.Close()
 
+	_, err = db.Exec("TRUNCATE star")
+	panicIf(err)
+
 	c.JSON(200, gin.H{
 		"result": "ok",
 	})
@@ -420,6 +423,55 @@ func getSession(c *gin.Context) *sessions.Session {
 	return session
 }
 
+
+func starsHandler(c *gin.Context) {
+	keyword := c.Param("keyword")
+	rows, err := db.Query(`SELECT * FROM star WHERE keyword = ?`, keyword)
+	if err != nil && err != sql.ErrNoRows {
+		panicIf(err)
+		return
+	}
+
+	stars := make([]Star, 0, 10)
+	for rows.Next() {
+		s := Star{}
+		err := rows.Scan(&s.ID, &s.Keyword, &s.UserName, &s.CreatedAt)
+		panicIf(err)
+		stars = append(stars, s)
+	}
+	rows.Close()
+
+	c.JSON(200, gin.H{
+		"result" : stars,
+	})
+
+}
+
+func starsPostHandler(c *gin.Context) {
+	keyword := c.Query("keyword")
+
+	origin := os.Getenv("ISUDA_ORIGIN")
+	if origin == "" {
+		origin = "http://localhost:5000"
+	}
+	u, err := c.Request.URL.Parse(fmt.Sprintf("%s/keyword/%s", origin, pathURIEscape(keyword)))
+	panicIf(err)
+	resp, err := http.Get(u.String())
+	panicIf(err)
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		notFound(c.Writer)
+		return
+	}
+
+	user := c.Query("user")
+	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
+	panicIf(err)
+
+	c.JSON(200, gin.H{
+		"result" : "ok",
+	})
+
 func main() {
 	host := os.Getenv("ISUDA_DB_HOST")
 	if host == "" {
@@ -520,6 +572,10 @@ func main() {
 
 	r.GET("/keyword/:keyword", keywordByKeywordHandler)
 	r.GET("/keyword/:keyword", keywordByKeywordDeleteHandler)
+
+	r.GET("/stars", starsHandler)
+	r.POST("/stars", starsPostHandler)
+
 	r.Static("/", "./public/")
 	r.Run(":5000")
 

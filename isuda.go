@@ -37,6 +37,7 @@ var (
 	baseUrl *url.URL
 	db      *sql.DB
 	re      *render.Render
+	sre     *render.Render
 	store   *sessions.CookieStore
 
 	errInvalidUser = errors.New("Invalid User")
@@ -73,10 +74,13 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := db.Exec(`DELETE FROM entry WHERE id > 7101`)
 	panicIf(err)
 
-	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutarEndpoint))
+	_, err = db.Exec("TRUNCATE star")	
 	panicIf(err)
-	defer resp.Body.Close()
 
+	_, _ = db.Query(`select sum(id) from entry`)
+	_, _ = db.Query(`select sum(id) from user`)
+	_, _ = db.Query(`select sum(id) from star`)	
+		
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
@@ -167,7 +171,7 @@ func keywordPostHandler(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO entry (author_id, keyword, description, created_at, updated_at)
 		VALUES (?, ?, ?, NOW(), NOW())
 		ON DUPLICATE KEY UPDATE
-		author_id = ?, keyword = ?, description = ?, updated_at = NOW()
+		author_id = ?, keyword = ?, description = ?, updated_at = CURRENT_TIMESTAMP(6)
 	`, userID, keyword, description, userID, keyword, description)
 	panicIf(err)
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -292,14 +296,7 @@ func keywordByKeywordDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w)
 		return
 	}
-	row := db.QueryRow(`SELECT * FROM entry WHERE keyword = ?`, keyword)
-	e := Entry{}
-	err := row.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
-	if err == sql.ErrNoRows {
-		notFound(w)
-		return
-	}
-	_, err = db.Exec(`DELETE FROM entry WHERE keyword = ?`, keyword)
+	_, err := db.Exec(`DELETE FROM entry WHERE keyword = ?`, keyword)
 	panicIf(err)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -309,13 +306,13 @@ func htmlify(w http.ResponseWriter, r *http.Request, content string) string {
 		return ""
 	}
 	rows, err := db.Query(`
-		SELECT * FROM entry ORDER BY CHARACTER_LENGTH(keyword) DESC
+		SELECT keyword FROM entry
 	`)
 	panicIf(err)
 	entries := make([]*Entry, 0, 500)
 	for rows.Next() {
 		e := Entry{}
-		err := rows.Scan(&e.ID, &e.AuthorID, &e.Keyword, &e.Description, &e.UpdatedAt, &e.CreatedAt)
+		err := rows.Scan(&e.Keyword)
 		panicIf(err)
 		entries = append(entries, &e)
 	}
@@ -342,18 +339,19 @@ func htmlify(w http.ResponseWriter, r *http.Request, content string) string {
 }
 
 func loadStars(keyword string) []*Star {
-	v := url.Values{}
-	v.Set("keyword", keyword)
-	resp, err := http.Get(fmt.Sprintf("%s/stars", isutarEndpoint) + "?" + v.Encode())
-	panicIf(err)
-	defer resp.Body.Close()
-
-	var data struct {
-		Result []*Star `json:result`
+	rows, err := db.Query(`SELECT * FROM star WHERE keyword = ?`, keyword)
+	if err != nil && err != sql.ErrNoRows {
+		panicIf(err)
 	}
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	panicIf(err)
-	return data.Result
+
+	stars := make([]*Star, 0, 10)
+	for rows.Next() {
+		s := Star{}
+		err := rows.Scan(&s.ID, &s.Keyword, &s.UserName, &s.CreatedAt)
+		panicIf(err)
+		stars = append(stars, &s)
+	}
+	return stars
 }
 
 func isSpamContents(content string) bool {
@@ -389,6 +387,25 @@ func getSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 	return session
 }
 
+func starsPostHandler(w http.ResponseWriter, r *http.Request) {
+	keyword := r.URL.Query().Get("keyword")
+	user := r.URL.Query().Get("user")
+	
+	rows, err := db.Query(`select keyword from entry where keyword = ?`, keyword)
+
+	panicIf(err)
+	if rows.Next() == false {
+		notFound(w)
+		return
+	}
+	
+	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
+	panicIf(err)
+
+	sre.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+}
+
+
 func main() {
 	host := os.Getenv("ISUDA_DB_HOST")
 	if host == "" {
@@ -422,10 +439,6 @@ func main() {
 	db.Exec("SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'")
 	db.Exec("SET NAMES utf8mb4")
 
-	isutarEndpoint = os.Getenv("ISUTAR_ORIGIN")
-	if isutarEndpoint == "" {
-		isutarEndpoint = "http://localhost:5001"
-	}
 	isupamEndpoint = os.Getenv("ISUPAM_ORIGIN")
 	if isupamEndpoint == "" {
 		isupamEndpoint = "http://localhost:5050"
@@ -455,6 +468,8 @@ func main() {
 		},
 	})
 
+	sre = render.New(render.Options{Directory: "dummy"})
+
 	r := mux.NewRouter()
 	r.HandleFunc("/", myHandler(topHandler))
 	r.HandleFunc("/initialize", myHandler(initializeHandler)).Methods("GET")
@@ -474,6 +489,9 @@ func main() {
 	k.Methods("GET").HandlerFunc(myHandler(keywordByKeywordHandler))
 	k.Methods("POST").HandlerFunc(myHandler(keywordByKeywordDeleteHandler))
 
+	s := r.PathPrefix("/stars").Subrouter()
+	s.Methods("POST").HandlerFunc(myHandler(starsPostHandler))	
+
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
-	log.Fatal(http.ListenAndServe(":5000", r))
+	log.Fatal(http.ListenAndServe(":5001", r))
 }

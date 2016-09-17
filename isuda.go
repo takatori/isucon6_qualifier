@@ -489,5 +489,5 @@ func main() {
 	s.Methods("POST").HandlerFunc(myHandler(starsPostHandler))	
 
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
-	log.Fatal(http.ListenAndServe(":5000", r))
+	log.Fatal(http.ListenAndServe(":5001", r))
 }

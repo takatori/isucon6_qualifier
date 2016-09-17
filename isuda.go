@@ -182,7 +182,7 @@ func keywordPostHandler(c *gin.Context) {
 		author_id = ?, keyword = ?, description = ?, updated_at = NOW()
 	`, userID, keyword, description, userID, keyword, description)
 	panicIf(err)
-	c.Redirect(404, "/")
+	c.Redirect(302, "/")
 	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -217,7 +217,7 @@ func loginPostHandler(c *gin.Context) {
 	session := getSession(c)
 	session.Values["user_id"] = user.ID
 	session.Save(c.Request, c.Writer)
-	c.Redirect(404, "/")
+	c.Redirect(302, "/")
 	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -225,7 +225,7 @@ func logoutHandler(c *gin.Context) {
 	session := getSession(c)
 	session.Options = &sessions.Options{MaxAge: -1}
 	session.Save(c.Request, c.Writer)
-	c.Redirect(404, "/")
+	c.Redirect(302, "/")
 	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -258,7 +258,7 @@ func registerPostHandler(c *gin.Context) {
 	session := getSession(c)
 	session.Values["user_id"] = userID
 	session.Save(c.Request, c.Writer)
-	c.Redirect(404, "/")
+	c.Redirect(302, "/")
 	//http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -329,7 +329,7 @@ func keywordByKeywordDeleteHandler(c *gin.Context) {
 	}
 	_, err = db.Exec(`DELETE FROM entry WHERE keyword = ?`, keyword)
 	panicIf(err)
-	c.Redirect(404, "/")
+	c.Redirect(302, "/")
 	//http.Redirect(w, r, "/", http.StatusFound)
 }
 

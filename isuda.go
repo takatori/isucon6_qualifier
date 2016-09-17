@@ -518,7 +518,7 @@ func main() {
 	r.GET("/keyword/:keyword", keywordByKeywordHandler)
 	r.GET("/keyword/:keyword", keywordByKeywordDeleteHandler)
 	r.Static("/", "./public/")
-	r.Run(":8080")
+	r.Run(":5000")
 
 	//r := mux.NewRouter()
 	//r.HandleFunc("/", myHandler(topHandler))

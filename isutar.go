@@ -9,8 +9,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/gorilla/mux"
 	"github.com/unrolled/render"
 )
 
@@ -20,14 +20,17 @@ var (
 	re      *render.Render
 )
 
-func initializeHandler(w http.ResponseWriter, r *http.Request) {
+func initializeHandler(c *gin.Context) {
 	_, err := db.Exec("TRUNCATE star")
 	panicIf(err)
-	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+	c.JSON(200, gin.H{
+		"result" : "ok",
+	})
+	//re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
-func starsHandler(w http.ResponseWriter, r *http.Request) {
-	keyword := mux.Vars(r)["keyword"]
+func starsHandler(c *gin.Context) {
+	keyword := c.Param("keyword")
 	rows, err := db.Query(`SELECT * FROM star WHERE keyword = ?`, keyword)
 	if err != nil && err != sql.ErrNoRows {
 		panicIf(err)
@@ -43,33 +46,42 @@ func starsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	re.JSON(w, http.StatusOK, map[string][]Star{
-		"result": stars,
+	c.JSON(200, gin.H{
+		"result" : stars,
 	})
+	//re.JSON(w, http.StatusOK, map[string][]Star{
+	//	"result": stars,
+	//})
 }
 
-func starsPostHandler(w http.ResponseWriter, r *http.Request) {
-	keyword := r.URL.Query().Get("keyword")
+func starsPostHandler(c *gin.Context) {
+	keyword := c.Query("keyword")
 
 	origin := os.Getenv("ISUDA_ORIGIN")
 	if origin == "" {
 		origin = "http://localhost:5000"
 	}
-	u, err := r.URL.Parse(fmt.Sprintf("%s/keyword/%s", origin, pathURIEscape(keyword)))
+	u, err := c.Request.URL.Parse(fmt.Sprintf("%s/keyword/%s", origin, pathURIEscape(keyword)))
 	panicIf(err)
 	resp, err := http.Get(u.String())
 	panicIf(err)
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		notFound(w)
+		notFound(c.Writer)
 		return
 	}
 
-	user := r.URL.Query().Get("user")
+	user := c.Query("user")
 	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
 	panicIf(err)
 
-	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+	c.JSON(200, gin.H{
+		"result" : "ok",
+	})
+	//re.JSON(w, http.StatusOK, map[string][]Star{
+	//	"result": "ok",
+	//})
+	//re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
 func main() {
@@ -107,11 +119,17 @@ func main() {
 
 	re = render.New(render.Options{Directory: "dummy"})
 
-	r := mux.NewRouter()
-	r.HandleFunc("/initialize", myHandler(initializeHandler))
-	s := r.PathPrefix("/stars").Subrouter()
-	s.Methods("GET").HandlerFunc(myHandler(starsHandler))
-	s.Methods("POST").HandlerFunc(myHandler(starsPostHandler))
+	r := gin.New()
+	r.GET("/initialize", initializeHandler)
+	r.GET("/stars", starsHandler)
+	r.POST("/stars", starsPostHandler)
+	r.Run(":5000")
 
-	log.Fatal(http.ListenAndServe(":5001", r))
+	//r := mux.NewRouter()
+	//r.HandleFunc("/initialize", myHandler(initializeHandler))
+	//s := r.PathPrefix("/stars").Subrouter()
+	//s.Methods("GET").HandlerFunc(myHandler(starsHandler))
+	//s.Methods("POST").HandlerFunc(myHandler(starsPostHandler))
+	//
+	//log.Fatal(http.ListenAndServe(":5001", r))
 }

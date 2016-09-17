@@ -133,7 +133,7 @@ func topHandler(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
-		"Context"  : c,
+		"Context"  : c.Request.Context(),
 		"Entries"  : entries,
 		"Page"     : page,
 		"LastPage" : lastPage,
@@ -194,7 +194,7 @@ func loginHandler(c *gin.Context) {
 		return
 	}
 	c.HTML(200, "authenticate.tmpl", gin.H{
-		"Context" : c,
+		"Context" : c.Request.Context(),
 		"Action" : "login",
 	})
 	//re.HTML(w, http.StatusOK, "authenticate", struct {
@@ -238,7 +238,7 @@ func registerHandler(c *gin.Context) {
 	}
 
 	c.HTML(200, "authenticate.tmpl", gin.H{
-		"Context" : c,
+		"Context" : c.Request.Context(),
 		"Action"  : "register",
 	})
 	//re.HTML(w, http.StatusOK, "authenticate", struct {
@@ -292,7 +292,7 @@ func keywordByKeywordHandler(c *gin.Context) {
 	e.Stars = loadStars(e.Keyword)
 
 	c.HTML(200, "keyword.tmpl", gin.H{
-		"Context" : c,
+		"Context" : c.Request.Context(),
 		"Entry"  : e,
 	})
 	//re.HTML(w, http.StatusOK, "keyword", struct {

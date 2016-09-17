@@ -399,12 +399,12 @@ func starsPostHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`select keyword from entry where keyword = ?`, keyword)
 
 	panicIf(err)
-	if rows.Next() == nil {
+	if rows.Next() == false {
 		notFound(w)
 		return
 	}
 	
-	_, err := db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
+	_, err = db.Exec(`INSERT INTO star (keyword, user_name, created_at) VALUES (?, ?, NOW())`, keyword, user)
 	panicIf(err)
 
 	sre.JSON(w, http.StatusOK, map[string]string{"result": "ok"})

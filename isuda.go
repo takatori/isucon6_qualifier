@@ -209,7 +209,7 @@ func loginPostHandler(c *gin.Context) {
 	row := db.QueryRow(`SELECT * FROM user WHERE name = ?`, name)
 	user := User{}
 	err := row.Scan(&user.ID, &user.Name, &user.Salt, &user.Password, &user.CreatedAt)
-	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+(c.Value("password")))){
+	if err == sql.ErrNoRows || user.Password != fmt.Sprintf("%x", sha1.Sum([]byte(user.Salt+c.PostForm("password")))){
 		forbidden(c.Writer)
 		return
 	}

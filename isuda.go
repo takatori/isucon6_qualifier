@@ -167,7 +167,7 @@ func keywordPostHandler(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO entry (author_id, keyword, description, created_at, updated_at)
 		VALUES (?, ?, ?, NOW(), NOW())
 		ON DUPLICATE KEY UPDATE
-		author_id = ?, keyword = ?, description = ?, updated_at = NOW()
+		author_id = ?, keyword = ?, description = ?, updated_at = UNIX_TIMESTAMP()
 	`, userID, keyword, description, userID, keyword, description)
 	panicIf(err)
 	http.Redirect(w, r, "/", http.StatusFound)
